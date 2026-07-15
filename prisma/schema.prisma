@@ -1,0 +1,198 @@
+// ─────────────────────────────────────────────────────────────
+//  TaniPro — Prisma Schema
+//  B2B Agricultural Logistics Platform
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"      // swap to "sqlite" for local dev
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  FARMER
+  BUYER
+}
+
+enum OrderStatus {
+  PENDING
+  ESCROW_HELD
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum ProductCategory {
+  GRAINS        // Padi, Jagung, Kedelai
+  VEGETABLES    // Sayur-mayur
+  FRUITS        // Buah-buahan
+  SPICES        // Rempah-rempah
+  LIVESTOCK     // Ternak
+  AQUACULTURE   // Perikanan
+}
+
+enum VehicleType {
+  CDE           // Cold Diesel Express  (~1-2 ton)
+  CDD           // Cold Diesel Double   (~3-5 ton)
+  FUSO          // Mitsubishi Fuso      (~8-12 ton)
+}
+
+enum TrackingStatus {
+  PREPARING
+  IN_TRANSIT
+  ARRIVED_HUB
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+// ── Models ───────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String   // hashed
+  role        Role     @default(BUYER)
+  points      Int      @default(0)    // Tani Point gamification
+  avatarUrl   String?
+  phone       String?
+  company     String?
+  address     String?
+  province    String?
+
+  // Relations
+  productsAsFarmer  Product[]   @relation("FarmerProducts")
+  ordersAsBuyer     Order[]     @relation("BuyerOrders")
+  ordersAsFarmer    Order[]     @relation("FarmerOrders")
+  pointLedger       PointLedger[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Product {
+  id              String          @id @default(cuid())
+  farmerId        String
+  farmer          User            @relation("FarmerProducts", fields: [farmerId], references: [id])
+
+  name            String
+  description     String?
+  price           Float           // IDR per kg
+  stock           Float           // kg
+  isPreOrder      Boolean         @default(false)
+  preOrderDays    Int?            // lead time for pre-orders
+  category        ProductCategory
+  imageUrl        String?
+
+  // Logistics dimensions (critical for VMS optimization)
+  weightPerUnit   Float           // kg
+  volumePerUnit   Float           // m³  (length × width × height)
+  lengthCm        Float           @default(0)
+  widthCm         Float           @default(0)
+  heightCm        Float           @default(0)
+
+  // Quality & Certification
+  organicCert     Boolean         @default(false)
+  harvestDate     DateTime?
+  expiryDate      DateTime?
+  province        String?
+  village         String?
+
+  orderItems      OrderItem[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("products")
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  buyerId         String
+  buyer           User         @relation("BuyerOrders", fields: [buyerId], references: [id])
+  farmerId        String
+  farmer          User         @relation("FarmerOrders", fields: [farmerId], references: [id])
+
+  totalAmount     Float        // IDR
+  platformFee     Float        // 7% of totalAmount
+  status          OrderStatus  @default(PENDING)
+
+  // ESG Tracking
+  esgCarbonSaved  Float        @default(0)   // kg CO2e saved vs conventional
+  esgRouteKm      Float        @default(0)
+
+  // Payment / Escrow
+  escrowReleased  Boolean      @default(false)
+  paymentRef      String?
+
+  items           OrderItem[]
+  shipment        Shipment?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  quantity    Float    // kg
+  unitPrice   Float    // IDR / kg at time of order
+
+  @@map("order_items")
+}
+
+model Shipment {
+  id              String         @id @default(cuid())
+  orderId         String         @unique
+  order           Order          @relation(fields: [orderId], references: [id])
+
+  vehicleType     VehicleType
+  driverName      String
+  driverPhone     String?
+  licensePlate    String?
+  trackingStatus  TrackingStatus @default(PREPARING)
+  estimatedTime   DateTime?
+
+  // Route
+  originLat       Float?
+  originLng       Float?
+  destLat         Float?
+  destLng         Float?
+  currentLat      Float?
+  currentLng      Float?
+
+  // Load optimization output
+  totalWeightKg   Float
+  totalVolumeM3   Float
+  loadEfficiency  Float         // 0–100 %
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("shipments")
+}
+
+model PointLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  points      Int
+  reason      String
+  refId       String?  // orderId or other reference
+  createdAt   DateTime @default(now())
+
+  @@map("point_ledger")
+}
