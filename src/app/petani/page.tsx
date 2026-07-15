@@ -6,9 +6,10 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard, Package, ShoppingBag, Bot,
   TrendingUp, TrendingDown, Plus, Edit2, Trash2,
-  Toggle, ToggleLeft, Star, Leaf, CheckCircle2,
+  ToggleLeft, Star, Leaf, CheckCircle2,
   Clock, AlertCircle, Truck, BarChart3, ChevronRight,
   MapPin, DollarSign, Archive, Zap,
+  ToggleRight,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/ui/DashboardLayout";
 import {
@@ -90,7 +91,7 @@ function ProductRow({ product, idx }: { product: (typeof mockProducts)[0]; idx: 
           onClick={() => setIsPreOrder(!isPreOrder)}
           className={`flex items-center gap-1.5 text-xs transition-colors ${isPreOrder ? "text-amber-400" : "text-slate-600"}`}
         >
-          {isPreOrder ? <Toggle className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+          {isPreOrder ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
           {isPreOrder ? "Pre-Order" : "Normal"}
         </button>
       </td>
